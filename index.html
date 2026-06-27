@@ -333,6 +333,32 @@ mark{background:#fff1a8;border-radius:4px;padding:0 2px;color:#1f2430}
 .today-verse{font-family:"Noto Serif KR","Apple SD Gothic Neo",serif;margin:.35em 0}
 .today-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .copy-select{margin-top:8px}
+.today-card.meditation-mode {
+  background: color-mix(in srgb,var(--paper) 80%,#fff8e8 20%);
+  border-color: #e07b39;
+}
+.today-med-badge {
+  display:inline-block;font-size:.72rem;font-weight:800;
+  background:#fff3e0;color:#e07b39;border:1px solid #f5c68a;
+  border-radius:999px;padding:2px 9px;margin-bottom:8px;
+}
+.today-med-title {
+  font-size:1.05rem;font-weight:900;margin:0 0 8px;
+  color:var(--ink);line-height:1.35;
+}
+.today-med-ref {
+  font-size:.82rem;font-weight:800;color:var(--blue-dark);margin-bottom:10px;
+}
+.today-med-content {
+  font-family:"Noto Serif KR","Apple SD Gothic Neo",serif;
+  font-size:.92rem;line-height:1.85;color:var(--ink);
+  display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;
+}
+.today-med-more {
+  font-size:.8rem;color:var(--blue-dark);font-weight:800;margin-top:6px;cursor:pointer;
+}
+.today-med-more:hover{text-decoration:underline;}
+
 
 
 
@@ -613,11 +639,16 @@ mark{background:#fff1a8;border-radius:4px;padding:0 2px;color:#1f2430}
     
 
     <section class="panel today-panel">
-      <strong>오늘의 말씀</strong>
+      <strong id="todayPanelTitle">오늘의 말씀</strong>
       <div id="todayScripture" class="today-card"></div>
       <div class="today-actions">
         <button id="goTodayScriptureBtn" class="mini-btn primary-btn" type="button">본문으로 이동</button>
         <button id="nextTodayScriptureBtn" class="mini-btn" type="button">다른 구절 보기</button>
+      </div>
+      <div id="todayShareActions" class="today-actions" style="display:none;margin-top:6px">
+        <button id="shareCopyBtn" class="mini-btn" type="button">📋 텍스트 복사</button>
+        <button id="shareKakaoBtn" class="mini-btn" type="button">💬 카톡 공유</button>
+        <button id="shareLinkBtn" class="mini-btn" type="button">🔗 링크 복사</button>
       </div>
     </section>
 <section class="panel">
@@ -1177,6 +1208,7 @@ document.addEventListener('keydown', event => {
       renderMeditationMarkers();
       renderMeditationCalendar();
       renderMeditationRecent();
+      renderTodayScripture(false);
     } catch (e) {
       console.error('묵상 로드 실패:', e);
       document.getElementById('medRecentList').innerHTML = '<div class="med-loading">묵상 데이터를 불러올 수 없습니다.</div>';
@@ -1310,6 +1342,34 @@ document.addEventListener('keydown', event => {
     medState.calMonth++;
     if (medState.calMonth > 12) { medState.calMonth = 1; medState.calYear++; }
     renderMeditationCalendar();
+  });
+
+
+  // ── 공유 버튼 ──
+  document.getElementById('shareCopyBtn').addEventListener('click', async () => {
+    const med = window._todayMeditation;
+    if (!med) return;
+    const ref = `${med.book} ${med.chapter}:${med.verseStart}${med.verseEnd && med.verseEnd !== med.verseStart ? '-' + med.verseEnd : ''}`;
+    const text = `[오늘의 묵상] ${med.title}\n${ref}\n\n${med.content}\n\n- 움공바이블 bible.movech.kr`;
+    await copyText(text);
+    flashPopoverButton(document.getElementById('shareCopyBtn'), '✅ 복사됨!');
+  });
+
+  document.getElementById('shareKakaoBtn').addEventListener('click', async () => {
+    const med = window._todayMeditation;
+    if (!med) return;
+    const ref = `${med.book} ${med.chapter}:${med.verseStart}${med.verseEnd && med.verseEnd !== med.verseStart ? '-' + med.verseEnd : ''}`;
+    const text = `📖 [오늘의 묵상]\n${med.title}\n${ref}\n\n${med.content.slice(0,200)}${med.content.length > 200 ? '...' : ''}\n\n더 보기: https://bible.movech.kr`;
+    await copyText(text);
+    flashPopoverButton(document.getElementById('shareKakaoBtn'), '✅ 카톡에 붙여넣기!');
+  });
+
+  document.getElementById('shareLinkBtn').addEventListener('click', async () => {
+    const med = window._todayMeditation;
+    if (!med) return;
+    const url = `https://bible.movech.kr?book=${encodeURIComponent(med.book)}&chapter=${med.chapter}&verse=${med.verseStart}`;
+    await copyText(url);
+    flashPopoverButton(document.getElementById('shareLinkBtn'), '✅ 링크 복사됨!');
   });
 
   // 초기 로드
