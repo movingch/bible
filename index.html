@@ -49,22 +49,10 @@
   </script>
 
 <title>움공바이블:새번역</title>
-<!-- Firebase SDK (compat v9) -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<!-- Firestore REST API 설정 -->
 <script>
-  firebase.initializeApp({
-    apiKey: "AIzaSyCwW8w_Vi_77KvMWUn4obG7HrNQUgfBeRY",
-    authDomain: "moved-bible.firebaseapp.com",
-    projectId: "moved-bible",
-    storageBucket: "moved-bible.firebasestorage.app",
-    messagingSenderId: "915391247602",
-    appId: "1:915391247602:web:99505bee4664141b4a0c6b"
-  });
-  window._meditationDB = firebase.firestore();
-  window._meditationAuth = firebase.auth();
-  window._meditationReady = true;
+  window._FIREBASE_PROJECT = "moved-bible";
+  window._FIREBASE_API_KEY = "AIzaSyCwW8w_Vi_77KvMWUn4obG7HrNQUgfBeRY";
 </script>
 
 <style>
@@ -1201,9 +1189,24 @@ document.addEventListener('keydown', event => {
 
   async function loadMeditations() {
     try {
-      const db = window._meditationDB;
-      const snap = await db.collection('meditations').orderBy('date', 'desc').get();
-      medState.all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const proj = window._FIREBASE_PROJECT;
+      const key  = window._FIREBASE_API_KEY;
+      const url  = `https://firestore.googleapis.com/v1/projects/${proj}/databases/(default)/documents/meditations?key=${key}&pageSize=200`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const json = await resp.json();
+      const docs = json.documents || [];
+      medState.all = docs.map(d => {
+        const f = d.fields || {};
+        const get = k => f[k]?.stringValue ?? f[k]?.integerValue ?? f[k]?.doubleValue ?? '';
+        return {
+          id: d.name.split('/').pop(),
+          date: get('date'), book: get('book'),
+          chapter: Number(get('chapter')), verseStart: Number(get('verseStart')),
+          verseEnd: Number(get('verseEnd')), title: get('title'),
+          content: get('content'), series: get('series')
+        };
+      }).sort((a,b) => b.date.localeCompare(a.date));
       medState.loaded = true;
       renderMeditationMarkers();
       renderMeditationCalendar();
@@ -1211,7 +1214,7 @@ document.addEventListener('keydown', event => {
       renderTodayScripture(false);
     } catch (e) {
       console.error('묵상 로드 실패:', e);
-      document.getElementById('medRecentList').innerHTML = '<div class="med-loading">묵상 데이터를 불러올 수 없습니다.</div>';
+      document.getElementById('medRecentList').innerHTML = '<div class="med-loading">불러오기 실패: ' + e.message + '</div>';
     }
   }
 
