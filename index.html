@@ -1187,17 +1187,23 @@ document.addEventListener('keydown', event => {
   };
 
   async function loadMeditations() {
+    const listEl = document.getElementById('medRecentList');
+    listEl.innerHTML = '<div class="med-loading">연결 중...</div>';
     try {
-      const proj = window._FIREBASE_PROJECT;
-      const key  = window._FIREBASE_API_KEY;
-      const url  = `https://firestore.googleapis.com/v1/projects/${proj}/databases/(default)/documents/meditations?key=${key}&pageSize=200`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const proj = 'moved-bible';
+      const key  = 'AIzaSyCwW8w_Vi_77KvMWUn4obG7HrNQUgfBeRY';
+      listEl.innerHTML = '<div class="med-loading">데이터 요청 중...</div>';
+      const resp = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${proj}/databases/(default)/documents/meditations?key=${key}&pageSize=200`
+      );
+      listEl.innerHTML = '<div class="med-loading">응답 파싱 중... (' + resp.status + ')</div>';
+      if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + await resp.text());
       const json = await resp.json();
       const docs = json.documents || [];
+      listEl.innerHTML = '<div class="med-loading">문서 ' + docs.length + '개 처리 중...</div>';
       medState.all = docs.map(d => {
         const f = d.fields || {};
-        const get = k => f[k]?.stringValue ?? f[k]?.integerValue ?? f[k]?.doubleValue ?? '';
+        const get = k => f[k]?.stringValue ?? (f[k]?.integerValue !== undefined ? String(f[k].integerValue) : '') ?? '';
         return {
           id: d.name.split('/').pop(),
           date: get('date'), book: get('book'),
@@ -1205,15 +1211,14 @@ document.addEventListener('keydown', event => {
           verseEnd: Number(get('verseEnd')), title: get('title'),
           content: get('content'), series: get('series')
         };
-      }).sort((a,b) => b.date.localeCompare(a.date));
+      }).sort((a,b) => (b.date||'').localeCompare(a.date||''));
       medState.loaded = true;
       renderMeditationMarkers();
       renderMeditationCalendar();
       renderMeditationRecent();
       renderTodayScripture(false);
     } catch (e) {
-      console.error('묵상 로드 실패:', e);
-      document.getElementById('medRecentList').innerHTML = '<div class="med-loading">불러오기 실패: ' + e.message + '</div>';
+      if (listEl) listEl.innerHTML = '<div class="med-loading" style="color:red">오류: ' + e.message + '</div>';
     }
   }
 
