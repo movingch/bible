@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>묵상 관리 – 움공바이블</title>
+<style>
+:root {
+  --bg:#f4ecd9; --paper:#fff8e8; --ink:#332b20; --muted:#806f5b;
+  --line:#e2d2b3; --blue:#8a6f43; --blue-dark:#6b5430;
+  --soft-blue:#efe2c3; --orange:#e07b39;
+}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
+  font-family:system-ui,-apple-system,sans-serif;padding:20px}
+h1{font-size:1.4rem;margin:0 0 24px;color:var(--blue-dark)}
+.container{max-width:800px;margin:0 auto}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:20px;padding:28px;margin-bottom:20px;box-shadow:0 8px 24px rgba(100,74,38,.08)}
+.card h2{font-size:1.05rem;margin:0 0 18px;color:var(--blue-dark)}
+label{display:block;font-size:.82rem;font-weight:800;color:var(--muted);margin:0 0 5px}
+input,textarea,select{
+  width:100%;border:1px solid var(--line);background:color-mix(in srgb,var(--paper) 92%,white 8%);
+  border-radius:12px;padding:10px 13px;color:var(--ink);font:inherit;outline:none;
+  transition:border-color .15s
+}
+input:focus,textarea:focus,select:focus{border-color:var(--blue)}
+textarea{resize:vertical;min-height:180px;line-height:1.75}
+.field{margin-bottom:16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.btn{border:0;border-radius:12px;padding:12px 22px;font:inherit;font-weight:800;cursor:pointer;transition:background .15s}
+.btn-primary{background:var(--orange);color:white}
+.btn-primary:hover{background:#c95f1a}
+.btn-secondary{background:var(--soft-blue);color:var(--blue-dark);border:1px solid var(--line)}
+.btn-secondary:hover{background:var(--line)}
+.btn-danger{background:#fee;color:#c00;border:1px solid #fcc}
+.btn-danger:hover{background:#fcc}
+.actions{display:flex;gap:10px;margin-top:8px}
+#status{
+  padding:12px 16px;border-radius:12px;margin-bottom:16px;
+  font-size:.88rem;font-weight:700;display:none
+}
+#status.success{background:#e8f5e9;color:#2e7d32;display:block}
+#status.error{background:#fee;color:#c00;display:block}
+
+/* 목록 */
+.med-list{display:grid;gap:10px}
+.med-item{
+  background:var(--paper);border:1px solid var(--line);border-radius:14px;
+  padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px
+}
+.med-info{}
+.med-date{font-size:.75rem;font-weight:800;color:var(--muted)}
+.med-title{font-weight:900;color:var(--blue-dark);margin:3px 0 2px}
+.med-ref{font-size:.78rem;color:var(--muted)}
+.med-actions{display:flex;gap:6px;flex-shrink:0}
+.med-actions button{
+  border:1px solid var(--line);background:var(--soft-blue);color:var(--blue-dark);
+  border-radius:8px;padding:5px 10px;cursor:pointer;font-size:.78rem;font-weight:700
+}
+.med-actions .del{background:#fee;color:#c00;border-color:#fcc}
+.tab-bar{display:flex;gap:8px;margin-bottom:20px}
+.tab{border:1px solid var(--line);background:var(--soft-blue);color:var(--blue-dark);
+  border-radius:999px;padding:8px 18px;cursor:pointer;font:inherit;font-weight:800;font-size:.88rem}
+.tab.active{background:var(--orange);color:white;border-color:var(--orange)}
+
+/* 로그인 */
+#loginScreen{max-width:380px;margin:80px auto}
+</style>
+</head>
+<body>
+
+<!-- 로그인 화면 -->
+<div id="loginScreen" class="card" style="display:none">
+  <h2>🔐 관리자 로그인</h2>
+  <div class="field"><label>이메일</label><input id="loginEmail" type="email" placeholder="admin@movech.kr"/></div>
+  <div class="field"><label>비밀번호</label><input id="loginPw" type="password"/></div>
+  <div id="loginStatus"></div>
+  <button class="btn btn-primary" id="loginBtn" style="width:100%">로그인</button>
+</div>
+
+<!-- 메인 관리 화면 -->
+<div class="container" id="mainScreen" style="display:none">
+  <h1>📖 묵상 관리 – 움공바이블</h1>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div class="tab-bar">
+      <button class="tab active" onclick="showTab('write')">묵상 작성</button>
+      <button class="tab" onclick="showTab('list')">목록 / 수정</button>
+    </div>
+    <button class="btn btn-secondary" onclick="logout()" style="font-size:.82rem;padding:8px 14px">로그아웃</button>
+  </div>
+
+  <!-- 작성 탭 -->
+  <div id="tabWrite">
+    <div class="card">
+      <h2>새 묵상 작성</h2>
+      <div id="status"></div>
+      <div class="row">
+        <div class="field"><label>날짜</label><input type="date" id="fDate"/></div>
+        <div class="field"><label>시리즈 / 제목</label><input type="text" id="fSeries" placeholder="예: 하루살기 시즌1"/></div>
+      </div>
+      <div class="field"><label>묵상 제목</label><input type="text" id="fTitle" placeholder="예: 새로운 시작"/></div>
+      <div class="row3">
+        <div class="field">
+          <label>성경 책</label>
+          <select id="fBook">
+            <option value="">책 선택</option>
+          </select>
+        </div>
+        <div class="field"><label>장</label><input type="number" id="fChapter" min="1" placeholder="1"/></div>
+        <div class="field"><label>절 (시작)</label><input type="number" id="fVerseStart" min="1" placeholder="1"/></div>
+      </div>
+      <div class="field">
+        <label>절 (끝, 범위일 경우)</label>
+        <input type="number" id="fVerseEnd" min="1" placeholder="비워두면 시작 절과 동일"/>
+      </div>
+      <div class="field"><label>묵상 본문</label><textarea id="fContent" placeholder="묵상 내용을 입력하세요..."></textarea></div>
+      <div class="actions">
+        <button class="btn btn-primary" id="saveBtn">저장</button>
+        <button class="btn btn-secondary" id="clearBtn">초기화</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 목록 탭 -->
+  <div id="tabList" style="display:none">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <h2 style="margin:0">등록된 묵상 목록</h2>
+        <button class="btn btn-secondary" onclick="loadList()" style="font-size:.82rem;padding:8px 14px">새로고침</button>
+      </div>
+      <div id="medListContainer"><div style="color:var(--muted);font-size:.88rem">로딩 중...</div></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, orderBy, query, updateDoc }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCwW8w_Vi_77KvMWUn4obG7HrNQUgfBeRY",
+  authDomain: "moved-bible.firebaseapp.com",
+  projectId: "moved-bible",
+  storageBucket: "moved-bible.firebasestorage.app",
+  messagingSenderId: "915391247602",
+  appId: "1:915391247602:web:99505bee4664141b4a0c6b"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+const BOOKS = [
+  '창세기','출애굽기','레위기','민수기','신명기','여호수아기','사사기','룻기',
+  '사무엘기상','사무엘기하','열왕기상','열왕기하','역대기상','역대기하',
+  '에스라','느헤미야','에스더','욥기','시편','잠언','전도서','아가',
+  '이사야','예레미야','예레미야애가','에스겔','다니엘','호세아','요엘',
+  '아모스','오바댜','요나','미가','나훔','하박국','스바냐','학개','스가랴','말라기',
+  '마태복음','마가복음','누가복음','요한복음','사도행전','로마서',
+  '고린도전서','고린도후서','갈라디아서','에베소서','빌립보서','골로새서',
+  '데살로니가전서','데살로니가후서','디모데전서','디모데후서','디도서','빌레몬서',
+  '히브리서','야고보서','베드로전서','베드로후서','요한1서','요한2서','요한3서',
+  '유다서','요한계시록'
+];
+
+// 책 목록 채우기
+const fBook = document.getElementById('fBook');
+BOOKS.forEach(b => fBook.innerHTML += `<option value="${b}">${b}</option>`);
+
+// 오늘 날짜 기본값
+document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
+
+// ── 인증 ──
+onAuthStateChanged(auth, user => {
+  document.getElementById('loginScreen').style.display = user ? 'none' : 'block';
+  document.getElementById('mainScreen').style.display = user ? 'block' : 'none';
+  if (user) loadList();
+});
+
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pw = document.getElementById('loginPw').value;
+  const st = document.getElementById('loginStatus');
+  try {
+    await signInWithEmailAndPassword(auth, email, pw);
+  } catch(e) {
+    st.style.cssText = 'color:#c00;font-size:.84rem;margin-top:10px';
+    st.textContent = '로그인 실패: 이메일/비밀번호를 확인해주세요.';
+  }
+});
+
+window.logout = async () => {
+  await signOut(auth);
+};
+
+// ── 탭 ──
+window.showTab = (tab) => {
+  document.getElementById('tabWrite').style.display = tab === 'write' ? 'block' : 'none';
+  document.getElementById('tabList').style.display = tab === 'list' ? 'block' : 'none';
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', (i===0) === (tab==='write')));
+  if (tab === 'list') loadList();
+};
+
+// ── 저장 ──
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  const title = document.getElementById('fTitle').value.trim();
+  const date = document.getElementById('fDate').value;
+  const book = document.getElementById('fBook').value;
+  const chapter = Number(document.getElementById('fChapter').value);
+  const verseStart = Number(document.getElementById('fVerseStart').value);
+  const verseEnd = Number(document.getElementById('fVerseEnd').value) || verseStart;
+  const content = document.getElementById('fContent').value.trim();
+  const series = document.getElementById('fSeries').value.trim();
+
+  if (!title || !date || !book || !chapter || !verseStart || !content) {
+    showStatus('모든 필수 항목을 입력해주세요.', 'error');
+    return;
+  }
+
+  const editId = document.getElementById('saveBtn').dataset.editId;
+  try {
+    if (editId) {
+      await updateDoc(doc(db, 'meditations', editId), { title, date, book, chapter, verseStart, verseEnd, content, series });
+      showStatus('묵상이 수정되었습니다.', 'success');
+      document.getElementById('saveBtn').textContent = '저장';
+      delete document.getElementById('saveBtn').dataset.editId;
+    } else {
+      await addDoc(collection(db, 'meditations'), { title, date, book, chapter, verseStart, verseEnd, content, series, createdAt: new Date().toISOString() });
+      showStatus('묵상이 저장되었습니다!', 'success');
+    }
+    clearForm();
+  } catch(e) {
+    showStatus('저장 실패: ' + e.message, 'error');
+  }
+});
+
+document.getElementById('clearBtn').addEventListener('click', clearForm);
+
+function clearForm() {
+  ['fTitle','fContent','fSeries'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('fBook').value = '';
+  document.getElementById('fChapter').value = '';
+  document.getElementById('fVerseStart').value = '';
+  document.getElementById('fVerseEnd').value = '';
+  document.getElementById('saveBtn').textContent = '저장';
+  delete document.getElementById('saveBtn').dataset.editId;
+}
+
+function showStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = type;
+  setTimeout(() => { el.style.display = 'none'; }, 3000);
+}
+
+// ── 목록 ──
+window.loadList = async () => {
+  const container = document.getElementById('medListContainer');
+  container.innerHTML = '<div style="color:var(--muted);font-size:.88rem">로딩 중...</div>';
+  try {
+    const q = query(collection(db, 'meditations'), orderBy('date', 'desc'));
+    const snap = await getDocs(q);
+    if (snap.empty) { container.innerHTML = '<div style="color:var(--muted)">등록된 묵상이 없습니다.</div>'; return; }
+    container.innerHTML = '<div class="med-list">' +
+      snap.docs.map(d => {
+        const m = d.data();
+        return `<div class="med-item">
+          <div class="med-info">
+            <div class="med-date">${m.date || ''} ${m.series ? '· ' + m.series : ''}</div>
+            <div class="med-title">${m.title || '(제목 없음)'}</div>
+            <div class="med-ref">${m.book || ''} ${m.chapter || ''}:${m.verseStart || ''}${m.verseEnd && m.verseEnd !== m.verseStart ? '-' + m.verseEnd : ''}</div>
+          </div>
+          <div class="med-actions">
+            <button onclick="editMed('${d.id}')">수정</button>
+            <button class="del" onclick="deleteMed('${d.id}')">삭제</button>
+          </div>
+        </div>`;
+      }).join('') + '</div>';
+  } catch(e) {
+    container.innerHTML = '<div style="color:#c00">로드 실패: ' + e.message + '</div>';
+  }
+};
+
+window.deleteMed = async (id) => {
+  if (!confirm('정말 삭제하시겠습니까?')) return;
+  await deleteDoc(doc(db, 'meditations', id));
+  loadList();
+};
+
+window.editMed = async (id) => {
+  const q = query(collection(db, 'meditations'));
+  const snap = await getDocs(q);
+  const d = snap.docs.find(d => d.id === id);
+  if (!d) return;
+  const m = d.data();
+  document.getElementById('fTitle').value = m.title || '';
+  document.getElementById('fDate').value = m.date || '';
+  document.getElementById('fBook').value = m.book || '';
+  document.getElementById('fChapter').value = m.chapter || '';
+  document.getElementById('fVerseStart').value = m.verseStart || '';
+  document.getElementById('fVerseEnd').value = m.verseEnd || '';
+  document.getElementById('fContent').value = m.content || '';
+  document.getElementById('fSeries').value = m.series || '';
+  document.getElementById('saveBtn').textContent = '수정 저장';
+  document.getElementById('saveBtn').dataset.editId = id;
+  showTab('write');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+</script>
+</body>
+</html>
