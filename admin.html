@@ -97,7 +97,7 @@ textarea{resize:vertical;min-height:180px;line-height:1.75}
       <div id="status"></div>
       <div class="row">
         <div class="field"><label>날짜</label><input type="date" id="fDate"/></div>
-        <div class="field"><label>시리즈 / 제목</label><input type="text" id="fSeries" placeholder="예: 하루살기 시즌1"/></div>
+        <div class="field"><label>시리즈 / 제목</label><input type="text" id="fSeries" value="복음이 빚어내는 하나님 나라 · 부르심에서 보내심으로"/></div>
       </div>
       <div class="field"><label>묵상 제목</label><input type="text" id="fTitle" placeholder="예: 새로운 시작"/></div>
       <div class="row3">
@@ -127,7 +127,11 @@ textarea{resize:vertical;min-height:180px;line-height:1.75}
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
         <h2 style="margin:0">등록된 묵상 목록</h2>
-        <button class="btn btn-secondary" onclick="loadList()" style="font-size:.82rem;padding:8px 14px">새로고침</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" onclick="toggleSelectAll()" id="selectAllBtn" style="font-size:.82rem;padding:8px 14px;display:none">전체선택</button>
+          <button class="btn" onclick="deleteSelected()" id="deleteSelectedBtn" style="font-size:.82rem;padding:8px 14px;background:#c62828;color:#fff;display:none">선택삭제</button>
+          <button class="btn btn-secondary" onclick="_listCache=null;loadList(true)" style="font-size:.82rem;padding:8px 14px">새로고침</button>
+        </div>
       </div>
       <div id="medListContainer"><div style="color:var(--muted);font-size:.88rem">로딩 중...</div></div>
     </div>
@@ -178,7 +182,12 @@ document.getElementById('fDate').value = new Date().toISOString().slice(0,10);
 onAuthStateChanged(auth, user => {
   document.getElementById('loginScreen').style.display = user ? 'none' : 'block';
   document.getElementById('mainScreen').style.display = user ? 'block' : 'none';
-  if (user) loadList();
+  if (user) {
+    localStorage.setItem('med_admin', '1');
+    loadList();
+  } else {
+    localStorage.removeItem('med_admin');
+  }
 });
 
 document.getElementById('loginBtn').addEventListener('click', async () => {
@@ -206,14 +215,18 @@ window.showTab = (tab) => {
 };
 
 // ── 저장 ──
+let _saving = false;
 document.getElementById('saveBtn').addEventListener('click', async () => {
+  if (_saving) return;
+
+  const btn = document.getElementById('saveBtn');
   const title = document.getElementById('fTitle').value.trim();
   const date = document.getElementById('fDate').value;
   const book = document.getElementById('fBook').value;
   const chapter = Number(document.getElementById('fChapter').value);
   const verseStart = Number(document.getElementById('fVerseStart').value);
   const verseEnd = Number(document.getElementById('fVerseEnd').value) || verseStart;
-  const content = document.getElementById('fContent').value.trim();
+  const content = stripMarkdown(document.getElementById('fContent').value.trim());
   const series = document.getElementById('fSeries').value.trim();
 
   if (!title || !date || !book || !chapter || !verseStart || !content) {
@@ -221,21 +234,32 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     return;
   }
 
-  const editId = document.getElementById('saveBtn').dataset.editId;
+  _saving = true;
+  btn.disabled = true;
+  btn.textContent = '저장 중...';
+
+  const editId = btn.dataset.editId;
   try {
     if (editId) {
       await updateDoc(doc(db, 'meditations', editId), { title, date, book, chapter, verseStart, verseEnd, content, series });
-      showStatus('묵상이 수정되었습니다.', 'success');
-      document.getElementById('saveBtn').textContent = '저장';
-      delete document.getElementById('saveBtn').dataset.editId;
+      delete btn.dataset.editId;
     } else {
       await addDoc(collection(db, 'meditations'), { title, date, book, chapter, verseStart, verseEnd, content, series, createdAt: new Date().toISOString() });
-      showStatus('묵상이 저장되었습니다!', 'success');
     }
-    clearForm();
+    _listCache = null;
+    btn.textContent = '✅ 저장 완료!';
+    btn.style.background = '#2e7d32';
+    showStatus(editId ? '묵상이 수정되었습니다.' : '묵상이 저장되었습니다!', 'success');
+    setTimeout(() => {
+      clearForm();
+      btn.style.background = '';
+    }, 1500);
   } catch(e) {
     showStatus('저장 실패: ' + e.message, 'error');
+    btn.textContent = '저장';
+    btn.disabled = false;
   }
+  _saving = false;
 });
 
 document.getElementById('clearBtn').addEventListener('click', clearForm);
@@ -255,32 +279,80 @@ function showStatus(msg, type) {
   const el = document.getElementById('status');
   el.textContent = msg;
   el.className = type;
-  setTimeout(() => { el.style.display = 'none'; }, 3000);
+  el.style.display = 'block';
+  el.style.fontSize = '1rem';
+  el.style.padding = '14px 18px';
+  el.style.fontWeight = '700';
+  el.style.borderRadius = '12px';
+  el.style.background = type === 'success' ? '#e8f5e9' : '#ffebee';
+  el.style.color = type === 'success' ? '#2e7d32' : '#c62828';
+  el.style.border = `1px solid ${type === 'success' ? '#a5d6a7' : '#ef9a9a'}`;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  setTimeout(() => { el.style.display = 'none'; }, 4000);
 }
 
 // ── 목록 ──
-window.loadList = async () => {
+let _listCache = null;
+
+function renderList(docs) {
   const container = document.getElementById('medListContainer');
+  document.getElementById('selectAllBtn').style.display = docs.length ? 'block' : 'none';
+  document.getElementById('deleteSelectedBtn').style.display = docs.length ? 'block' : 'none';
+  if (!docs.length) { container.innerHTML = '<div style="color:var(--muted)">등록된 묵상이 없습니다.</div>'; return; }
+  container.innerHTML = '<div class="med-list">' +
+    docs.map(({id, m}) => `<div class="med-item">
+      <label style="display:flex;align-items:center;gap:12px;flex:1;cursor:pointer">
+        <input type="checkbox" class="med-check" data-id="${id}" style="width:18px;height:18px;cursor:pointer;accent-color:#c62828">
+        <div class="med-info" style="flex:1">
+          <div class="med-date">${m.date || ''} ${m.series ? '· ' + m.series : ''}</div>
+          <div class="med-title">${m.title || '(제목 없음)'}</div>
+          <div class="med-ref">${m.book || ''} ${m.chapter || ''}:${m.verseStart || ''}${m.verseEnd && m.verseEnd !== m.verseStart ? '-' + m.verseEnd : ''}</div>
+        </div>
+      </label>
+      <div class="med-actions">
+        <button onclick="editMed('${id}')">수정</button>
+      </div>
+    </div>`).join('') + '</div>';
+}
+
+window.toggleSelectAll = () => {
+  const checks = document.querySelectorAll('.med-check');
+  const allChecked = [...checks].every(c => c.checked);
+  checks.forEach(c => c.checked = !allChecked);
+  document.getElementById('selectAllBtn').textContent = allChecked ? '전체선택' : '전체해제';
+};
+
+window.deleteSelected = async () => {
+  const checked = [...document.querySelectorAll('.med-check:checked')];
+  if (!checked.length) { alert('삭제할 항목을 선택해주세요.'); return; }
+  if (!confirm(`선택한 ${checked.length}개를 삭제하시겠습니까?`)) return;
+  const btn = document.getElementById('deleteSelectedBtn');
+  btn.disabled = true; btn.textContent = '삭제 중...';
+  try {
+    await Promise.all(checked.map(c => deleteDoc(doc(db, 'meditations', c.dataset.id))));
+    _listCache = null;
+    showStatus(`${checked.length}개가 삭제되었습니다.`, 'success');
+    await loadList(true);
+  } catch(e) {
+    showStatus('삭제 실패: ' + e.message, 'error');
+  }
+  btn.disabled = false; btn.textContent = '선택삭제';
+  document.getElementById('selectAllBtn').textContent = '전체선택';
+};
+
+window.loadList = async (forceRefresh = false) => {
+  const container = document.getElementById('medListContainer');
+  // 캐시가 있으면 즉시 표시
+  if (_listCache && !forceRefresh) {
+    renderList(_listCache);
+    return;
+  }
   container.innerHTML = '<div style="color:var(--muted);font-size:.88rem">로딩 중...</div>';
   try {
     const q = query(collection(db, 'meditations'), orderBy('date', 'desc'));
     const snap = await getDocs(q);
-    if (snap.empty) { container.innerHTML = '<div style="color:var(--muted)">등록된 묵상이 없습니다.</div>'; return; }
-    container.innerHTML = '<div class="med-list">' +
-      snap.docs.map(d => {
-        const m = d.data();
-        return `<div class="med-item">
-          <div class="med-info">
-            <div class="med-date">${m.date || ''} ${m.series ? '· ' + m.series : ''}</div>
-            <div class="med-title">${m.title || '(제목 없음)'}</div>
-            <div class="med-ref">${m.book || ''} ${m.chapter || ''}:${m.verseStart || ''}${m.verseEnd && m.verseEnd !== m.verseStart ? '-' + m.verseEnd : ''}</div>
-          </div>
-          <div class="med-actions">
-            <button onclick="editMed('${d.id}')">수정</button>
-            <button class="del" onclick="deleteMed('${d.id}')">삭제</button>
-          </div>
-        </div>`;
-      }).join('') + '</div>';
+    _listCache = snap.docs.map(d => ({ id: d.id, m: d.data() }));
+    renderList(_listCache);
   } catch(e) {
     container.innerHTML = '<div style="color:#c00">로드 실패: ' + e.message + '</div>';
   }
@@ -289,7 +361,8 @@ window.loadList = async () => {
 window.deleteMed = async (id) => {
   if (!confirm('정말 삭제하시겠습니까?')) return;
   await deleteDoc(doc(db, 'meditations', id));
-  loadList();
+  _listCache = null;
+  loadList(true);
 };
 
 window.editMed = async (id) => {
@@ -311,6 +384,41 @@ window.editMed = async (id) => {
   showTab('write');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 };
+
+// 마크다운 기호 제거
+function stripMarkdown(text) {
+  return text
+    .replace(/^#{1,6}\s+/gm, '')       // ## 제목
+    .replace(/\*\*(.+?)\*\*/g, '$1')   // **굵게**
+    .replace(/\*(.+?)\*/g, '$1')       // *기울임*
+    .replace(/^[\*\-]\s+/gm, '')       // * - 목록
+    .replace(/^>\s+/gm, '')            // > 인용
+    .replace(/`{1,3}[^`]*`{1,3}/g, '') // `코드`
+    .replace(/\[(.+?)\]\(.+?\)/g, '$1')// [링크](url)
+    .replace(/_{1,2}(.+?)_{1,2}/g, '$1')// _기울임_
+    .replace(/~~(.+?)~~/g, '$1')       // ~~취소선~~
+    .replace(/\n{3,}/g, '\n\n')        // 3줄 이상 빈줄 → 2줄
+    .trim();
+}
+
+document.getElementById('fContent').addEventListener('paste', function(e) {
+  e.preventDefault();
+  const pasted = (e.clipboardData || window.clipboardData).getData('text');
+  const clean = stripMarkdown(pasted);
+  const start = this.selectionStart, end = this.selectionEnd;
+  const val = this.value;
+  this.value = val.slice(0, start) + clean + val.slice(end);
+  this.selectionStart = this.selectionEnd = start + clean.length;
+});
+
+document.getElementById('fTitle').addEventListener('paste', function(e) {
+  e.preventDefault();
+  const pasted = (e.clipboardData || window.clipboardData).getData('text');
+  const clean = stripMarkdown(pasted);
+  const start = this.selectionStart, end = this.selectionEnd;
+  this.value = this.value.slice(0, start) + clean + this.value.slice(end);
+  this.selectionStart = this.selectionEnd = start + clean.length;
+});
 </script>
 </body>
 </html>

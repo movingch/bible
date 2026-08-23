@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>오늘의 묵상 | 움공바이블</title>
+
+  <!-- Open Graph (카카오톡 미리보기) -->
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="움공바이블" />
+  <meta property="og:title" content="오늘의 묵상 | 움공바이블" />
+  <meta property="og:description" content="움직이는교회 하루살기 묵상. 클릭하면 오늘의 묵상 전문을 볼 수 있습니다." />
+  <meta property="og:image" content="https://bible.movech.kr/og-meditation.png" />
+  <meta property="og:url" content="https://bible.movech.kr/meditation.html" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 24px 16px 48px;
+    }
+    .header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 24px; width: 100%; max-width: 600px;
+    }
+    .header a {
+      font-size: .85rem; color: #5a7fa8; text-decoration: none;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .header a:hover { text-decoration: underline; }
+    .card {
+      background: #fff;
+      border-radius: 24px;
+      padding: 32px 28px;
+      max-width: 600px;
+      width: 100%;
+      box-shadow: 0 8px 40px rgba(54,100,140,.13);
+    }
+    .loading { color: #8fa8c0; text-align: center; padding: 40px 0; font-size: 1rem; }
+    .ref-badge {
+      display: inline-block;
+      font-size: .78rem; font-weight: 800;
+      color: #3a6fa8; background: #e8f0fb;
+      border-radius: 999px; padding: 4px 14px;
+      margin-bottom: 14px;
+    }
+    .series { font-size: .82rem; color: #8fa8c0; margin-bottom: 6px; }
+    .title { font-size: 1.6rem; font-weight: 900; line-height: 1.3; margin-bottom: 20px; color: #1a2a3a; }
+    .divider { height: 1px; background: #e8edf3; margin: 20px 0; }
+    .content {
+      font-family: "Noto Serif KR", "Apple SD Gothic Neo", serif;
+      font-size: 1.05rem; line-height: 1.95;
+      color: #2a3a4a; white-space: pre-wrap;
+    }
+    .actions {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      margin-top: 28px; padding-top: 20px;
+      border-top: 1px solid #e8edf3;
+    }
+    .btn {
+      padding: 10px 18px; border-radius: 12px;
+      font-size: .88rem; font-weight: 700;
+      border: none; cursor: pointer; transition: .15s;
+    }
+    .btn-primary { background: #3a6fa8; color: #fff; }
+    .btn-primary:hover { background: #2d5a8a; }
+    .btn-secondary { background: #f0f4f8; color: #3a6fa8; border: 1px solid #d0dce8; }
+    .btn-secondary:hover { background: #e0eaf4; }
+    .logo-row {
+      margin-top: 36px; text-align: center;
+      font-size: .8rem; color: #b0c0d0;
+    }
+    .logo-row a { color: #8fa8c0; text-decoration: none; font-weight: 700; }
+    .error { color: #c0392b; text-align: center; padding: 40px 0; }
+    .comment-section { margin-top: 28px; padding-top: 20px; border-top: 1px solid #e8edf3; }
+    .comment-section-title { font-weight: 800; font-size: .9rem; color: #3a6fa8; margin-bottom: 12px; }
+    .comment-list { display: grid; gap: 8px; margin-bottom: 14px; max-height: 240px; overflow-y: auto; }
+    .comment-item { background: #f0f6ff; border-radius: 12px; padding: 9px 14px; font-size: .88rem; line-height: 1.5; }
+    .comment-nick { font-weight: 800; color: #3a6fa8; margin-right: 6px; }
+    .comment-input-row { display: flex; gap: 8px; }
+    .comment-input-row input {
+      flex: 1; padding: 10px 14px; border-radius: 12px;
+      border: 1px solid #d0dce8; background: #f8fafc;
+      font-size: .9rem; outline: none; font-family: inherit;
+    }
+    .comment-input-row input:focus { border-color: #3a6fa8; background: #fff; }
+    .comment-my-nick { font-size: .75rem; color: #b0c0d0; margin-top: 6px; }
+    .comment-my-nick strong { color: #8fa8c0; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <a href="https://bible.movech.kr">← 움공바이블로 이동</a>
+  </div>
+
+  <div class="card" id="card">
+    <div class="loading" id="loading">묵상을 불러오는 중...</div>
+  </div>
+
+  <div class="logo-row">움직이는교회 &nbsp;·&nbsp; <a href="https://bible.movech.kr">bible.movech.kr</a></div>
+
+  <script>
+    const API_KEY = 'AIzaSyCwW8w_Vi_77KvMWUn4obG7HrNQUgfBeRY';
+    const PROJECT = 'moved-bible';
+
+    async function load() {
+      const card = document.getElementById('card');
+      try {
+        const resp = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/meditations?key=${API_KEY}&pageSize=200`
+        );
+        const json = await resp.json();
+        const docs = (json.documents || []).map(d => {
+          const f = d.fields || {};
+          const s = k => f[k]?.stringValue ?? '';
+          const n = k => Number(f[k]?.integerValue ?? f[k]?.stringValue ?? 0);
+          return { date: s('date'), book: s('book'), chapter: n('chapter'),
+            verseStart: n('verseStart'), verseEnd: n('verseEnd'),
+            title: s('title'), content: s('content'), series: s('series') };
+        }).sort((a,b) => b.date.localeCompare(a.date));
+
+        // URL 파라미터로 날짜 지정 가능 (?date=2026-06-27)
+        const params = new URLSearchParams(location.search);
+        const targetDate = params.get('date') || new Date(Date.now() + 9*60*60*1000).toISOString().slice(0,10);
+        const med = docs.find(m => m.date === targetDate) || docs[0];
+
+        if (!med) {
+          card.innerHTML = '<div class="error">등록된 묵상이 없습니다.</div>';
+          return;
+        }
+
+        const ref = `${med.book} ${med.chapter}:${med.verseStart}${med.verseEnd && med.verseEnd !== med.verseStart ? '-'+med.verseEnd : ''}`;
+
+        // OG 태그 동적 업데이트
+        document.title = `${med.title} | 움공바이블`;
+        document.querySelector('meta[property="og:title"]').setAttribute('content', `${med.title} | 오늘의 묵상`);
+        document.querySelector('meta[property="og:description"]').setAttribute('content', `${ref} · ${med.content.slice(0,80)}...`);
+
+        card.innerHTML = `
+          <div class="ref-badge">${ref}</div>
+          ${med.series ? `<div class="series">${med.series}</div>` : ''}
+          <div class="title">${med.title}</div>
+          <div class="divider"></div>
+          <div class="content">${med.content}</div>
+          <div class="actions">
+            <button class="btn btn-primary" onclick="goBible()">📖 성경 본문 보기</button>
+            <button class="btn btn-secondary" id="copyBtn" onclick="copyMed()">📋 텍스트 복사</button>
+            <button class="btn btn-secondary" id="shareBtn" onclick="shareMed()">💬 공유하기</button>
+          </div>
+          <div class="comment-section">
+            <div class="comment-section-title">💬 한 줄 나눔</div>
+            <div class="comment-list" id="commentList"><div style="color:#b0c0d0;font-size:.85rem">불러오는 중...</div></div>
+            <div class="comment-input-row">
+              <input type="text" id="commentInput" maxlength="80" placeholder="한 줄 나눔을 남겨보세요..." />
+              <button class="btn btn-primary" id="commentSubmit" onclick="postComment()">등록</button>
+            </div>
+            <div class="comment-my-nick">내 별명: <strong id="myNickLabel"></strong></div>
+          </div>
+        `;
+        window._med = med;
+        window._ref = ref;
+        document.getElementById('myNickLabel').textContent = getMyNickname();
+        loadComments(med.date);
+        document.getElementById('commentInput').addEventListener('keydown', e => {
+          if (e.key === 'Enter') postComment();
+        });
+      } catch(e) {
+        document.getElementById('card').innerHTML = `<div class="error">오류: ${e.message}</div>`;
+      }
+    }
+
+    function goBible() {
+      const m = window._med; if (!m) return;
+      location.href = `https://bible.movech.kr?book=${encodeURIComponent(m.book)}&chapter=${m.chapter}&verse=${m.verseStart}`;
+    }
+
+    async function copyMed() {
+      const m = window._med; if (!m) return;
+      const text = `[오늘의 묵상] ${m.title}\n${window._ref}\n\n${m.content}\n\n- 움공바이블 bible.movech.kr`;
+      await navigator.clipboard.writeText(text);
+      const btn = document.getElementById('copyBtn');
+      btn.textContent = '✅ 복사됨!'; setTimeout(() => btn.textContent = '📋 텍스트 복사', 2000);
+    }
+
+    async function shareMed() {
+      const m = window._med; if (!m) return;
+      const shareUrl = `https://bible.movech.kr/meditation.html?date=${m.date}`;
+      if (navigator.share) {
+        await navigator.share({ title: `${m.title} | 오늘의 묵상`, text: `${window._ref}\n\n${m.content.slice(0,100)}...`, url: shareUrl });
+      } else {
+        await navigator.clipboard.writeText(shareUrl);
+        const btn = document.getElementById('shareBtn');
+        btn.textContent = '✅ 링크 복사됨!'; setTimeout(() => btn.textContent = '💬 공유하기', 2000);
+      }
+    }
+
+    const NICK_WORDS = ['은혜','기쁨','소망','믿음','사랑','평화','감사','축복','빛','생명','기도','찬양','순종','겸손','인내','성실'];
+    function getMyNickname() {
+      let nick = localStorage.getItem('med_nickname');
+      if (!nick) {
+        const w = NICK_WORDS[Math.floor(Math.random()*NICK_WORDS.length)];
+        const n = Math.floor(Math.random()*90)+10;
+        nick = w + n;
+        localStorage.setItem('med_nickname', nick);
+      }
+      return nick;
+    }
+
+    async function loadComments(medDate) {
+      const list = document.getElementById('commentList');
+      if (!list) return;
+      try {
+        const resp = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/comments?key=${API_KEY}&pageSize=100`
+        );
+        const json = await resp.json();
+        const myNick = getMyNickname();
+        const isAdmin = localStorage.getItem('med_admin') === '1';
+        const docs = (json.documents||[]).map(d => {
+          const f = d.fields||{};
+          return { docName: d.name||'', date: f.medDate?.stringValue||'', nick: f.nickname?.stringValue||'', text: f.text?.stringValue||'', at: f.createdAt?.stringValue||'' };
+        }).filter(c => c.date === medDate).sort((a,b) => a.at.localeCompare(b.at));
+        if (!docs.length) {
+          list.innerHTML = '<div style="color:#b0c0d0;font-size:.85rem;text-align:center;padding:8px">아직 나눔이 없습니다. 첫 번째로 남겨보세요!</div>';
+          return;
+        }
+        list.innerHTML = docs.map(c => {
+          const canDel = isAdmin || c.nick === myNick;
+          const delBtn = canDel ? `<button onclick="deleteComment('${c.docName}','${medDate}')" style="margin-left:8px;background:none;border:none;color:#c0392b;cursor:pointer;font-size:.8rem;padding:0 2px;opacity:.7" title="삭제">✕</button>` : '';
+          return `<div class="comment-item" style="display:flex;align-items:center;justify-content:space-between"><div><span class="comment-nick">${esc(c.nick)}</span><span>${esc(c.text)}</span></div>${delBtn}</div>`;
+        }).join('');
+        list.scrollTop = list.scrollHeight;
+      } catch(e) {
+        if (list) list.innerHTML = `<div style="color:red;font-size:.85rem">오류: ${e.message}</div>`;
+      }
+    }
+
+    async function deleteComment(docName, medDate) {
+      if (!confirm('댓글을 삭제하시겠습니까?')) return;
+      try {
+        await fetch(`https://firestore.googleapis.com/v1/${docName}?key=${API_KEY}`, { method: 'DELETE' });
+        await loadComments(medDate);
+      } catch(e) { alert('삭제 실패: ' + e.message); }
+    }
+
+    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+    let _posting = false;
+    async function postComment() {
+      if (_posting) return;
+      const input = document.getElementById('commentInput');
+      const btn = document.getElementById('commentSubmit');
+      const text = input.value.trim();
+      if (!text || !window._med) return;
+      _posting = true;
+      btn.disabled = true; btn.textContent = '...';
+      try {
+        const nick = getMyNickname();
+        const body = { fields: {
+          medDate: {stringValue: window._med.date},
+          nickname: {stringValue: nick},
+          text: {stringValue: text},
+          createdAt: {stringValue: new Date().toISOString()}
+        }};
+        const res = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/comments?key=${API_KEY}`,
+          { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        input.value = '';
+        // 저장된 댓글 즉시 화면에 추가
+        const list = document.getElementById('commentList');
+        const noMsg = list.querySelector('[style*="text-align:center"]');
+        if (noMsg) noMsg.remove();
+        const item = document.createElement('div');
+        item.className = 'comment-item';
+        item.style.cssText = 'display:flex;align-items:center;justify-content:space-between';
+        item.innerHTML = `<div><span class="comment-nick">${esc(nick)}</span><span>${esc(text)}</span></div>`;
+        list.appendChild(item);
+        list.scrollTop = list.scrollHeight;
+        setTimeout(() => loadComments(window._med.date), 1500);
+      } catch(e) { alert('저장 실패: '+e.message); }
+      btn.disabled = false; btn.textContent = '등록';
+      _posting = false;
+    }
+
+    load();
+  </script>
+</body>
+</html>
