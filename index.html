@@ -1340,14 +1340,14 @@ document.addEventListener('keydown', event => {
     } catch(e) { list.innerHTML=`<div style="color:red;font-size:.82rem">오류: ${e.message}</div>`; }
   }
 
-  async function deleteComment(docName, medDate) {
+  window.deleteComment = async function(docName, medDate) {
     if (!confirm('댓글을 삭제하시겠습니까?')) return;
-    const proj = window._FIREBASE_PROJECT, key = window._FIREBASE_API_KEY;
+    const key = window._FIREBASE_API_KEY;
     try {
       await fetch(`https://firestore.googleapis.com/v1/${docName}?key=${key}`, { method:'DELETE' });
       await loadComments(medDate);
     } catch(e) { alert('삭제 실패: '+e.message); }
-  }
+  };
 
   let _postingComment = false;
   async function postComment(medDate) {

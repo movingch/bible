@@ -251,13 +251,13 @@
       }
     }
 
-    async function deleteComment(docName, medDate) {
+    window.deleteComment = async function(docName, medDate) {
       if (!confirm('댓글을 삭제하시겠습니까?')) return;
       try {
         await fetch(`https://firestore.googleapis.com/v1/${docName}?key=${API_KEY}`, { method: 'DELETE' });
         await loadComments(medDate);
       } catch(e) { alert('삭제 실패: ' + e.message); }
-    }
+    };
 
     function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
