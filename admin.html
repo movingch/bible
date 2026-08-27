@@ -86,6 +86,7 @@ textarea{resize:vertical;min-height:180px;line-height:1.75}
     <div class="tab-bar">
       <button class="tab active" onclick="showTab('write')">묵상 작성</button>
       <button class="tab" onclick="showTab('list')">목록 / 수정</button>
+      <button class="tab" onclick="showTab('settings')">⚙️ 설정</button>
     </div>
     <button class="btn btn-secondary" onclick="logout()" style="font-size:.82rem;padding:8px 14px">로그아웃</button>
   </div>
@@ -122,6 +123,20 @@ textarea{resize:vertical;min-height:180px;line-height:1.75}
     </div>
   </div>
 
+  <!-- 설정 탭 -->
+  <div id="tabSettings" style="display:none">
+    <div class="card">
+      <h2 style="margin-bottom:20px">비밀번호 변경</h2>
+      <div style="display:grid;gap:12px;max-width:360px">
+        <input type="password" id="pwCurrent" placeholder="현재 비밀번호" style="padding:12px 14px;border-radius:12px;border:1px solid var(--line);font-size:.95rem;font-family:inherit" />
+        <input type="password" id="pwNew" placeholder="새 비밀번호 (6자 이상)" style="padding:12px 14px;border-radius:12px;border:1px solid var(--line);font-size:.95rem;font-family:inherit" />
+        <input type="password" id="pwConfirm" placeholder="새 비밀번호 확인" style="padding:12px 14px;border-radius:12px;border:1px solid var(--line);font-size:.95rem;font-family:inherit" />
+        <button class="btn btn-primary" onclick="changePassword()" style="padding:12px">비밀번호 변경</button>
+        <div id="pwStatus" style="font-size:.88rem;min-height:20px"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- 목록 탭 -->
   <div id="tabList" style="display:none">
     <div class="card">
@@ -140,7 +155,8 @@ textarea{resize:vertical;min-height:180px;line-height:1.75}
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+  updatePassword, reauthenticateWithCredential, EmailAuthProvider }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, orderBy, query, updateDoc }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -206,11 +222,39 @@ window.logout = async () => {
   await signOut(auth);
 };
 
+window.changePassword = async () => {
+  const st = document.getElementById('pwStatus');
+  const current = document.getElementById('pwCurrent').value;
+  const pw1 = document.getElementById('pwNew').value;
+  const pw2 = document.getElementById('pwConfirm').value;
+  if (!current || !pw1 || !pw2) { st.style.color='#c00'; st.textContent='모든 항목을 입력해주세요.'; return; }
+  if (pw1.length < 6) { st.style.color='#c00'; st.textContent='새 비밀번호는 6자 이상이어야 합니다.'; return; }
+  if (pw1 !== pw2) { st.style.color='#c00'; st.textContent='새 비밀번호가 일치하지 않습니다.'; return; }
+  st.style.color='#888'; st.textContent='변경 중...';
+  try {
+    const user = auth.currentUser;
+    const credential = EmailAuthProvider.credential(user.email, current);
+    await reauthenticateWithCredential(user, credential);
+    await updatePassword(user, pw1);
+    st.style.color='#2e7d32'; st.textContent='✅ 비밀번호가 변경되었습니다!';
+    document.getElementById('pwCurrent').value = '';
+    document.getElementById('pwNew').value = '';
+    document.getElementById('pwConfirm').value = '';
+  } catch(e) {
+    if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+      st.style.color='#c00'; st.textContent='현재 비밀번호가 틀렸습니다.';
+    } else {
+      st.style.color='#c00'; st.textContent='오류: ' + e.message;
+    }
+  }
+};
+
 // ── 탭 ──
 window.showTab = (tab) => {
   document.getElementById('tabWrite').style.display = tab === 'write' ? 'block' : 'none';
   document.getElementById('tabList').style.display = tab === 'list' ? 'block' : 'none';
-  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', (i===0) === (tab==='write')));
+  document.getElementById('tabSettings').style.display = tab === 'settings' ? 'block' : 'none';
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', ['write','list','settings'][i] === tab));
   if (tab === 'list') loadList();
 };
 
