@@ -215,16 +215,27 @@
       const list = document.getElementById('commentList');
       if (!list) return;
       try {
+        const body = { structuredQuery: {
+          from: [{collectionId: 'comments'}],
+          where: { fieldFilter: {
+            field: {fieldPath: 'medDate'}, op: 'EQUAL',
+            value: {stringValue: medDate}
+          }},
+          orderBy: [{field: {fieldPath: 'createdAt'}, direction: 'ASCENDING'}]
+        }};
         const resp = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents/comments?key=${API_KEY}&pageSize=100`
+          `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents:runQuery?key=${API_KEY}`,
+          { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }
         );
         const json = await resp.json();
         const myNick = getMyNickname();
         const isAdmin = localStorage.getItem('med_admin') === '1';
-        const docs = (json.documents||[]).map(d => {
-          const f = d.fields||{};
-          return { docName: d.name||'', date: f.medDate?.stringValue||'', nick: f.nickname?.stringValue||'', text: f.text?.stringValue||'', at: f.createdAt?.stringValue||'' };
-        }).filter(c => c.date === medDate).sort((a,b) => a.at.localeCompare(b.at));
+        const docs = (Array.isArray(json) ? json : [])
+          .filter(r => r.document)
+          .map(r => {
+            const f = r.document.fields || {};
+            return { docName: r.document.name||'', nick: f.nickname?.stringValue||'', text: f.text?.stringValue||'', at: f.createdAt?.stringValue||'' };
+          });
         if (!docs.length) {
           list.innerHTML = '<div style="color:#b0c0d0;font-size:.85rem;text-align:center;padding:8px">아직 나눔이 없습니다. 첫 번째로 남겨보세요!</div>';
           return;
